@@ -4,10 +4,16 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import org.springframework.amqp.rabbit.annotation.Exchange;
+import org.springframework.amqp.rabbit.annotation.Queue;
+import org.springframework.amqp.rabbit.annotation.QueueBinding;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ar.edu.unnoba.pdyc2026.notification_service.client.UserClient;
+import ar.edu.unnoba.pdyc2026.notification_service.dto.EventStatusChangedMessage;
 import ar.edu.unnoba.pdyc2026.notification_service.dto.NotificationResponse;
 import ar.edu.unnoba.pdyc2026.notification_service.model.Notification;
 import ar.edu.unnoba.pdyc2026.notification_service.repository.NotificationRepository;
@@ -18,11 +24,37 @@ public class NotificationService {
     @Autowired
     private NotificationRepository notificationRepository;
 
-    /* * TODO: Este método será refactorizado en el próximo paso de la Práctica 5
-     * para que reciba un mensaje asíncrono desde RabbitMQ / Kafka con la lista
-     * de usuarios a notificar cada vez que el Catálogo emita un evento.
-     */
-    // public void createNotificationsFromBrokerMessage(...) { ... }
+    @Autowired
+    private UserClient userClient;
+
+    // Este listener crea automáticamente la cola y se suscribe al exchange del catálogo
+    @RabbitListener(bindings = @QueueBinding(
+            value = @Queue(value = "notification.queue", durable = "true"),
+            exchange = @Exchange(value = "event.exchange", type = "topic"),
+            key = "event.status.changed"
+    ))
+    @Transactional
+    public void createNotificationsFromBrokerMessage(EventStatusChangedMessage message) {
+        
+        // 1. Le pedimos al user-service la lista de interesados
+        List<String> usernamesToNotify = userClient.getInterestedUsers(message.eventId(), message.artistIds());
+
+        // 2. Creamos las notificaciones
+        List<Notification> notifications = usernamesToNotify.stream().map(username -> {
+            Notification n = new Notification();
+            n.setEventId(message.eventId());
+            n.setEventName(message.eventName());
+            n.setUsername(username);
+            n.setPreviousState(message.previousState());
+            n.setCurrentState(message.currentState());
+            return n;
+        }).collect(Collectors.toList());
+
+        // 3. Guardamos en la BD de notificaciones
+        if (!notifications.isEmpty()) {
+            notificationRepository.saveAll(notifications);
+        }
+    }
 
     @Transactional(readOnly = true)
     public CompletableFuture<List<NotificationResponse>> getMyNotifications(String username) {
