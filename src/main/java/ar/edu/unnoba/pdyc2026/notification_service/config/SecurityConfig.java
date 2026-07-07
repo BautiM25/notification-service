@@ -33,7 +33,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
                 //Verificar que el usuario posea, al menos, el rol de usuario final
-                .requestMatchers("/notifications/**").authenticated()
+                .requestMatchers("/me/notifications/**").authenticated()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2

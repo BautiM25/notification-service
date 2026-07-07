@@ -20,7 +20,7 @@ import ar.edu.unnoba.pdyc2026.notification_service.dto.UpdateNotificationRequest
 import ar.edu.unnoba.pdyc2026.notification_service.service.NotificationService;
 
 @RestController
-@RequestMapping("/notifications")
+@RequestMapping("/me/notifications")
 public class NotificationController {
 
     @Autowired
